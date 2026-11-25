@@ -1,0 +1,14 @@
+OpsPilot sample services deployed to namespace {{ .Release.Namespace }}.
+
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+  - {{ $name }}: {{ include "opspilot.image" (dict "root" $ "name" $name "svc" $svc) }}
+{{- end }}
+{{- end }}
+
+Check them:
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if eq .Values.service.type "NodePort" }}
+
+On kind: http://127.0.0.1:9001/docs (inventory), http://127.0.0.1:9002/docs (orders)
+{{- end }}
