@@ -1,0 +1,30 @@
+# Prod: 3 replicas, more headroom, immutable image tags
+image:
+  prefix: ghcr.io/mehaktewari/opspilot-
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicas: 3
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+services:
+  inventory:
+    nodePort: null
+    env:
+      BUGGY: "false"
+  orders:
+    nodePort: null
