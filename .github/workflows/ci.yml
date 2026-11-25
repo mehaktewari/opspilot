@@ -95,6 +95,13 @@ jobs:
             echo "::endgroup::"
           done
 
+      - name: Validate Argo CD manifests
+        run: |
+          ./kubeconform -strict -summary -kubernetes-version 1.37.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            deploy/argocd/
+
   e2e-kind:
     name: e2e on kind
     needs: [test, k8s-validate]
