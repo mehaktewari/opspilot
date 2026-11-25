@@ -1,0 +1,38 @@
+# Argo CD watches this repo and keeps the dev namespace identical to what's in Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opspilot-dev
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: opspilot
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mehaktewari/opspilot.git
+    targetRevision: main
+    path: deploy/helm/opspilot-app
+    helm:
+      releaseName: opspilot
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opspilot
+  syncPolicy:
+    automated:
+      prune: true       # delete resources that were removed from Git
+      selfHeal: true    # undo manual changes made with kubectl
+    syncOptions:
+      - CreateNamespace=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/enforce-version: latest
+        app.kubernetes.io/part-of: opspilot
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
