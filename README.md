@@ -1,10 +1,11 @@
 # OpsPilot
 
 [![CI](https://github.com/mehaktewari/opspilot/actions/workflows/ci.yml/badge.svg)](https://github.com/mehaktewari/opspilot/actions/workflows/ci.yml)
+[![Security](https://github.com/mehaktewari/opspilot/actions/workflows/security.yml/badge.svg)](https://github.com/mehaktewari/opspilot/actions/workflows/security.yml)
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 2** — CI runs tests and builds images on every push.
+> Status: **Day 3** — CI plus security scanning (secrets, dependencies, Dockerfiles, images).
 
 ## Sample app
 
@@ -45,11 +46,23 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 1. **test**: pytest for each service on Python 3.12 and 3.14 (4 jobs in parallel)
 2. **docker-build**: builds each image and checks `/healthz` responds
 
+## Security
+
+`.github/workflows/security.yml` runs on every push, every PR, and weekly:
+
+| Check | Tool | Fails the build on |
+|---|---|---|
+| Secrets in git history | Gitleaks | any leak |
+| Python deps, Dockerfiles, secrets in files | Trivy (fs) | HIGH / CRITICAL with a fix available |
+| Built container images | Trivy (image) | CRITICAL with a fix available |
+
+Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab. Dependabot opens weekly PRs for Python packages, base images and GitHub Actions, and all actions are pinned to commit SHAs.
+
 ## Roadmap
 
 - [x] Sample services + Docker Compose
 - [x] CI: tests + Docker build/smoke test
-- [ ] Security scans: Trivy, Gitleaks
+- [x] Security scans: Gitleaks, Trivy, Dependabot, SHA-pinned actions
 - [ ] Kubernetes + Helm + Argo CD
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
