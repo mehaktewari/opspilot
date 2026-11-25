@@ -63,10 +63,14 @@ jobs:
           exit 1
 
   k8s-validate:
-    name: validate k8s manifests
+    name: validate helm chart
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: v4.3.2
 
       - name: Install kubeconform (checksum verified)
         env:
@@ -77,8 +81,19 @@ jobs:
           echo "$SHA  kubeconform-linux-amd64.tar.gz" | sha256sum -c -
           tar xzf kubeconform-linux-amd64.tar.gz kubeconform
 
-      - name: Validate against Kubernetes 1.37 schemas
-        run: ./kubeconform -strict -summary -kubernetes-version 1.37.0 deploy/k8s/
+      - name: Lint and validate every environment
+        env:
+          CHART: deploy/helm/opspilot-app
+        run: |
+          for env in default staging prod; do
+            args=()
+            [ "$env" != default ] && args=(-f "$CHART/values-$env.yaml")
+            echo "::group::$env"
+            helm lint --strict "$CHART" "${args[@]}"
+            helm template opspilot "$CHART" -n opspilot "${args[@]}" \
+              | ./kubeconform -strict -summary -kubernetes-version 1.37.0 -
+            echo "::endgroup::"
+          done
 
   e2e-kind:
     name: e2e on kind
@@ -86,6 +101,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: v4.3.2
 
       - name: Install kind (checksum verified)
         env:
@@ -102,5 +121,6 @@ jobs:
       - name: Debug on failure
         if: failure()
         run: |
+          helm --kube-context kind-opspilot -n opspilot status opspilot || true
           kubectl --context kind-opspilot -n opspilot get all,events
           kubectl --context kind-opspilot -n opspilot logs -l app.kubernetes.io/part-of=opspilot --tail=50 --prefix
