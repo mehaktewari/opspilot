@@ -34,6 +34,7 @@ services:
       BUGGY: "false"  # set "true" to simulate a bad release
   orders:
     enabled: true
+    replicas: 1
     nodePort: 30002
     env:
       INVENTORY_URL: "http://inventory:8000"
