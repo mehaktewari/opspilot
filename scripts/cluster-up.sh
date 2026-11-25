@@ -37,11 +37,16 @@ $K label --overwrite namespace "$NS" \
 $K -n "$NS" delete deployment,service \
   -l 'app.kubernetes.io/part-of=opspilot,app.kubernetes.io/managed-by!=Helm' --ignore-not-found
 
-echo "==> helm upgrade --install"
-helm lint "$CHART"
-helm upgrade --install opspilot "$CHART" \
-  --kube-context "$CTX" --namespace "$NS" \
-  --wait --timeout 3m
+if $K -n argocd get application opspilot-dev >/dev/null 2>&1; then
+  # After Day 6, Argo CD deploys from Git. Running helm here would fight it.
+  echo "==> Argo CD manages the app (deploys from Git), skipping helm install"
+else
+  echo "==> helm upgrade --install"
+  helm lint "$CHART"
+  helm upgrade --install opspilot "$CHART" \
+    --kube-context "$CTX" --namespace "$NS" \
+    --wait --timeout 3m
+fi
 # Same :dev tag every time, so force pods to pick up the freshly loaded image
 $K -n "$NS" rollout restart deployment/inventory deployment/orders
 for d in inventory orders; do
@@ -59,7 +64,7 @@ smoke http://127.0.0.1:9001/low-stock; echo
 smoke -X POST http://127.0.0.1:9002/orders -H "Content-Type: application/json" \
   -d '{"sku":"paracetamol-500","qty":1}'; echo
 
-helm --kube-context "$CTX" -n "$NS" list
+helm --kube-context "$CTX" -n "$NS" list 2>/dev/null || true
 $K -n "$NS" get pods -o wide
 echo
 echo "Inventory: http://127.0.0.1:9001/docs"
