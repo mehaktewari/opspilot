@@ -42,3 +42,82 @@ jobs:
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
+
+  repo-scan:
+    name: deps + dockerfiles (trivy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan repo (report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: MEDIUM,HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-repo.sarif
+
+      - name: Upload results to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: trivy-repo.sarif
+          category: trivy-repo
+
+      - name: Gate on HIGH/CRITICAL
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
+
+  image-scan:
+    name: image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [inventory, orders]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build image
+        run: docker build -t opspilot/${{ matrix.service }}:scan services/${{ matrix.service }}
+
+      - name: Scan image (report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opspilot/${{ matrix.service }}:scan
+          severity: MEDIUM,HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-image.sarif
+
+      - name: Upload results to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ matrix.service }}
+
+      - name: Gate on CRITICAL
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opspilot/${{ matrix.service }}:scan
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
