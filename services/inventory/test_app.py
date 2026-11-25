@@ -23,3 +23,8 @@ def test_reserve_reduces_stock():
 def test_reserve_too_much_fails():
     r = client.post("/reserve", json={"sku": "ors-sachet", "qty": 9999})
     assert r.status_code == 409
+
+def test_amoxicillin_in_stock():
+    r = client.get("/items/amoxicillin-500")
+    assert r.status_code == 200
+    assert r.json()["name"] == "Amoxicillin 500mg"

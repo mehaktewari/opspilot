@@ -20,6 +20,7 @@ STOCK: dict[str, dict] = {
     "paracetamol-500": {"name": "Paracetamol 500mg", "qty": 120, "min_qty": 30},
     "cetirizine-10": {"name": "Cetirizine 10mg", "qty": 25, "min_qty": 20},
     "ors-sachet": {"name": "ORS Sachet", "qty": 8, "min_qty": 15},
+    "amoxicillin-500": {"name": "Amoxicillin 500mg", "qty": 40, "min_qty": 25},
 }
 
 
