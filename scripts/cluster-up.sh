@@ -49,12 +49,14 @@ for d in inventory orders; do
 done
 
 echo "==> Smoke test"
-for i in $(seq 1 20); do
-  curl -fsS http://127.0.0.1:9001/healthz >/dev/null 2>&1 && break
-  sleep 1
+# Right after a rollout, old pods are still terminating and can reset connections,
+# so retry on any error instead of trusting the first response.
+smoke() { curl -fsS --retry 15 --retry-delay 2 --retry-all-errors --max-time 5 "$@"; }
+for port in 9001 9002; do
+  smoke "http://127.0.0.1:$port/healthz" >/dev/null || { echo "Service on :$port never became healthy"; exit 1; }
 done
-curl -fsS http://127.0.0.1:9001/low-stock; echo
-curl -fsS -X POST http://127.0.0.1:9002/orders -H "Content-Type: application/json" \
+smoke http://127.0.0.1:9001/low-stock; echo
+smoke -X POST http://127.0.0.1:9002/orders -H "Content-Type: application/json" \
   -d '{"sku":"paracetamol-500","qty":1}'; echo
 
 helm --kube-context "$CTX" -n "$NS" list
