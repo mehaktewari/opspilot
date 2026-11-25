@@ -5,7 +5,7 @@
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 5** — deployed with a Helm chart that has dev, staging and prod settings.
+> Status: **Day 6** — GitOps: Argo CD deploys the app from this repo and undoes manual changes.
 
 ## Sample app
 
@@ -61,6 +61,25 @@ Preview what an environment would deploy:
 helm template opspilot deploy/helm/opspilot-app -f deploy/helm/opspilot-app/values-prod.yaml
 ```
 
+## GitOps with Argo CD
+
+After `cluster-up.sh`, hand the app over to Argo CD:
+
+```bash
+bash scripts/argocd-up.sh
+kubectl --context kind-opspilot -n argocd port-forward svc/argocd-server 8080:443
+# https://localhost:8080  (user admin, password printed by the script)
+```
+
+`deploy/argocd/opspilot-dev.yaml` tells Argo CD to keep the `opspilot` namespace identical to
+`deploy/helm/opspilot-app` on `main`:
+
+- **Git is the source of truth.** Change `values.yaml`, push, and Argo CD rolls it out (no `helm` or `kubectl` needed).
+- **Self-heal.** A manual `kubectl scale` or `kubectl edit` is reverted to what Git says.
+- **Prune.** Resources removed from the chart are deleted from the cluster.
+- **Rollback = `git revert`.** Every deploy is a commit, so history, review and undo come for free.
+  OpsPilot's AI agent will use exactly this path to roll back a bad release.
+
 ## Run tests
 
 ```bash
@@ -96,7 +115,8 @@ Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab.
 - [x] Security scans: Gitleaks, Trivy, Dependabot, SHA-pinned actions
 - [x] Kubernetes (kind) with restricted pod security + e2e in CI
 - [x] Helm chart with dev / staging / prod values
-- [ ] Argo CD (GitOps)
+- [x] Argo CD (GitOps) with auto-sync and self-heal for dev
+- [ ] Publish images to GHCR + promote to staging/prod
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
 - [ ] Dashboard + approval flow
