@@ -5,7 +5,7 @@
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 3** — CI plus security scanning (secrets, dependencies, Dockerfiles, images).
+> Status: **Day 4** — running on Kubernetes (kind) with hardened manifests and an e2e test in CI.
 
 ## Sample app
 
@@ -32,6 +32,23 @@ Simulate a bad release (slow responses + random 500s):
 BUGGY=true docker compose up --build inventory
 ```
 
+## Run on Kubernetes (kind)
+
+Needs Docker Desktop, [kind](https://kind.sigs.k8s.io/) and kubectl.
+
+```bash
+bash scripts/cluster-up.sh     # create cluster, build + load images, deploy, smoke test
+# inventory: http://127.0.0.1:9001/docs   orders: http://127.0.0.1:9002/docs
+bash scripts/cluster-down.sh   # delete the cluster
+```
+
+Manifests live in `deploy/k8s/`. Each service runs 2 replicas with readiness/liveness probes,
+CPU/memory limits, zero-downtime rolling updates, and a locked-down security context
+(non-root, read-only filesystem, no privilege escalation, all capabilities dropped).
+The namespace enforces the Kubernetes **restricted** Pod Security Standard, so a pod that
+breaks these rules is rejected. Scripts always use the `kind-opspilot` kubectl context so they
+can never touch another cluster.
+
 ## Run tests
 
 ```bash
@@ -45,6 +62,8 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 
 1. **test**: pytest for each service on Python 3.12 and 3.14 (4 jobs in parallel)
 2. **docker-build**: builds each image and checks `/healthz` responds
+3. **k8s-validate**: checks manifests against Kubernetes 1.37 schemas (kubeconform)
+4. **e2e-kind**: creates a real kind cluster, deploys both services and runs a smoke test
 
 ## Security
 
@@ -63,7 +82,8 @@ Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab.
 - [x] Sample services + Docker Compose
 - [x] CI: tests + Docker build/smoke test
 - [x] Security scans: Gitleaks, Trivy, Dependabot, SHA-pinned actions
-- [ ] Kubernetes + Helm + Argo CD
+- [x] Kubernetes (kind) with restricted pod security + e2e in CI
+- [ ] Helm + Argo CD (GitOps)
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
 - [ ] Dashboard + approval flow
