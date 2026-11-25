@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opspilot
+  labels:
+    app.kubernetes.io/part-of: opspilot
+    # Reject any pod that isn't locked down (root user, privilege escalation, extra capabilities...)
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
