@@ -1,8 +1,10 @@
 # OpsPilot
 
+[![CI](https://github.com/mehaktewari/opspilot/actions/workflows/ci.yml/badge.svg)](https://github.com/mehaktewari/opspilot/actions/workflows/ci.yml)
+
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 1** — sample microservices running locally with Docker Compose.
+> Status: **Day 2** — CI runs tests and builds images on every push.
 
 ## Sample app
 
@@ -36,10 +38,18 @@ cd services/inventory && pip install -r requirements.txt -r requirements-dev.txt
 cd ../orders && pip install -r requirements.txt -r requirements-dev.txt && pytest -q
 ```
 
+## CI
+
+Every push and pull request runs `.github/workflows/ci.yml`:
+
+1. **test**: pytest for each service on Python 3.12 and 3.14 (4 jobs in parallel)
+2. **docker-build**: builds each image and checks `/healthz` responds
+
 ## Roadmap
 
 - [x] Sample services + Docker Compose
-- [ ] CI: tests, Trivy, Gitleaks
+- [x] CI: tests + Docker build/smoke test
+- [ ] Security scans: Trivy, Gitleaks
 - [ ] Kubernetes + Helm + Argo CD
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
