@@ -61,3 +61,46 @@ jobs:
           done
           docker logs svc
           exit 1
+
+  k8s-validate:
+    name: validate k8s manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install kubeconform (checksum verified)
+        env:
+          V: "0.8.0"
+          SHA: "9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883"
+        run: |
+          curl -sSLO "https://github.com/yannh/kubeconform/releases/download/v$V/kubeconform-linux-amd64.tar.gz"
+          echo "$SHA  kubeconform-linux-amd64.tar.gz" | sha256sum -c -
+          tar xzf kubeconform-linux-amd64.tar.gz kubeconform
+
+      - name: Validate against Kubernetes 1.37 schemas
+        run: ./kubeconform -strict -summary -kubernetes-version 1.37.0 deploy/k8s/
+
+  e2e-kind:
+    name: e2e on kind
+    needs: [test, k8s-validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install kind (checksum verified)
+        env:
+          V: "0.33.0"
+          SHA: "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d"
+        run: |
+          curl -sSLo kind "https://github.com/kubernetes-sigs/kind/releases/download/v$V/kind-linux-amd64"
+          echo "$SHA  kind" | sha256sum -c -
+          chmod +x kind && sudo mv kind /usr/local/bin/kind
+
+      - name: Create cluster, deploy, smoke test
+        run: bash scripts/cluster-up.sh
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          kubectl --context kind-opspilot -n opspilot get all,events
+          kubectl --context kind-opspilot -n opspilot logs -l app.kubernetes.io/part-of=opspilot --tail=50 --prefix
