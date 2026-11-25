@@ -5,7 +5,7 @@
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 4** — running on Kubernetes (kind) with hardened manifests and an e2e test in CI.
+> Status: **Day 5** — deployed with a Helm chart that has dev, staging and prod settings.
 
 ## Sample app
 
@@ -34,20 +34,32 @@ BUGGY=true docker compose up --build inventory
 
 ## Run on Kubernetes (kind)
 
-Needs Docker Desktop, [kind](https://kind.sigs.k8s.io/) and kubectl.
+Needs Docker Desktop, [kind](https://kind.sigs.k8s.io/), kubectl and [Helm](https://helm.sh/).
 
 ```bash
-bash scripts/cluster-up.sh     # create cluster, build + load images, deploy, smoke test
+bash scripts/cluster-up.sh     # create cluster, build + load images, helm install, smoke test
 # inventory: http://127.0.0.1:9001/docs   orders: http://127.0.0.1:9002/docs
 bash scripts/cluster-down.sh   # delete the cluster
 ```
 
-Manifests live in `deploy/k8s/`. Each service runs 2 replicas with readiness/liveness probes,
-CPU/memory limits, zero-downtime rolling updates, and a locked-down security context
-(non-root, read-only filesystem, no privilege escalation, all capabilities dropped).
-The namespace enforces the Kubernetes **restricted** Pod Security Standard, so a pod that
-breaks these rules is rejected. Scripts always use the `kind-opspilot` kubectl context so they
-can never touch another cluster.
+The app is packaged as a Helm chart in `deploy/helm/opspilot-app/`. Each service runs with
+readiness/liveness probes, CPU/memory limits, zero-downtime rolling updates, a PodDisruptionBudget,
+and a locked-down security context (non-root, read-only filesystem, no privilege escalation, all
+capabilities dropped). The namespace enforces the Kubernetes **restricted** Pod Security Standard,
+so a pod that breaks these rules is rejected. Scripts always use the `kind-opspilot` kubectl
+context so they can never touch another cluster.
+
+| Environment | Values file | Replicas | Service | Images |
+|---|---|---|---|---|
+| dev (kind) | `values.yaml` | 2 | NodePort | local `opspilot/<svc>:dev` |
+| staging | `values-staging.yaml` | 1 | ClusterIP | `ghcr.io/mehaktewari/opspilot-<svc>:main` |
+| prod | `values-prod.yaml` | 3 (PDB min 2) | ClusterIP | `ghcr.io/mehaktewari/opspilot-<svc>:1.0.0` |
+
+Preview what an environment would deploy:
+
+```bash
+helm template opspilot deploy/helm/opspilot-app -f deploy/helm/opspilot-app/values-prod.yaml
+```
 
 ## Run tests
 
@@ -62,8 +74,8 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 
 1. **test**: pytest for each service on Python 3.12 and 3.14 (4 jobs in parallel)
 2. **docker-build**: builds each image and checks `/healthz` responds
-3. **k8s-validate**: checks manifests against Kubernetes 1.37 schemas (kubeconform)
-4. **e2e-kind**: creates a real kind cluster, deploys both services and runs a smoke test
+3. **k8s-validate**: `helm lint --strict`, then renders the chart for dev, staging and prod and validates each against Kubernetes 1.37 schemas (kubeconform)
+4. **e2e-kind**: creates a real kind cluster, installs the chart with Helm and runs a smoke test
 
 ## Security
 
@@ -83,7 +95,8 @@ Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab.
 - [x] CI: tests + Docker build/smoke test
 - [x] Security scans: Gitleaks, Trivy, Dependabot, SHA-pinned actions
 - [x] Kubernetes (kind) with restricted pod security + e2e in CI
-- [ ] Helm + Argo CD (GitOps)
+- [x] Helm chart with dev / staging / prod values
+- [ ] Argo CD (GitOps)
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
 - [ ] Dashboard + approval flow
