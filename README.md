@@ -5,7 +5,7 @@
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 6** — GitOps: Argo CD deploys the app from this repo and undoes manual changes.
+> Status: **Day 7** — laptop-friendly local mode: the whole stack runs on an 8 GB machine.
 
 ## Sample app
 
@@ -51,7 +51,7 @@ context so they can never touch another cluster.
 
 | Environment | Values file | Replicas | Service | Images |
 |---|---|---|---|---|
-| dev (kind) | `values.yaml` | 2 | NodePort | local `opspilot/<svc>:dev` |
+| dev (kind) | `values.yaml` | 1 | NodePort | local `opspilot/<svc>:dev` |
 | staging | `values-staging.yaml` | 1 | ClusterIP | `ghcr.io/mehaktewari/opspilot-<svc>:main` |
 | prod | `values-prod.yaml` | 3 (PDB min 2) | ClusterIP | `ghcr.io/mehaktewari/opspilot-<svc>:1.0.0` |
 
@@ -60,6 +60,17 @@ Preview what an environment would deploy:
 ```bash
 helm template opspilot deploy/helm/opspilot-app -f deploy/helm/opspilot-app/values-prod.yaml
 ```
+
+## Running on a small laptop
+
+The local setup is tuned to fit on an 8 GB machine next to a browser and an IDE:
+
+- **1 replica per service** in dev (`values.yaml`). Staging and prod keep their own replica counts.
+- **Preflight check**: `cluster-up.sh` first runs `scripts/preflight.sh`, which shows free RAM and disk,
+  lists the biggest memory users, and refuses to start under 1.5 GB free (override with `FORCE=1`).
+- **Slim Argo CD**: `argocd-up.sh` turns off the parts not needed locally (Dex SSO, notifications,
+  ApplicationSets: 7 pods down to 4) and sets CPU/memory limits, since upstream ships with none.
+- **startupProbe** on every service, so a slow boot on a busy machine isn't killed by the liveness probe.
 
 ## GitOps with Argo CD
 
@@ -116,6 +127,7 @@ Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab.
 - [x] Kubernetes (kind) with restricted pod security + e2e in CI
 - [x] Helm chart with dev / staging / prod values
 - [x] Argo CD (GitOps) with auto-sync and self-heal for dev
+- [x] Laptop-friendly local mode (8 GB): preflight check, slim Argo CD, 1 replica in dev
 - [ ] Publish images to GHCR + promote to staging/prod
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
