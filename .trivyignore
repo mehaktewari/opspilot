@@ -1,0 +1,6 @@
+# Accepted risks. Each entry needs a reason and an expiry date so it gets reviewed.
+
+# KSV-0125 "image from untrusted registry": only the local dev values (values.yaml) use
+# opspilot/<svc>:dev images, built on the laptop and loaded straight into kind.
+# Staging and prod pull signed images from ghcr.io (see .github/workflows/release.yml).
+KSV-0125 exp:2027-06-30
