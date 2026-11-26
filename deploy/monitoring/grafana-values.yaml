@@ -1,0 +1,474 @@
+# Grafana for OpsPilot, sized for a laptop (chart: grafana-community/grafana).
+# Deployed by Argo CD from deploy/argocd/monitoring.yaml.
+# Login: admin / password from the grafana secret (scripts/monitoring-up.sh prints it).
+
+persistence:
+  enabled: false        # dashboards come from Git, so nothing to lose on restart
+
+testFramework:
+  enabled: false        # skip the helm test pod
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+grafana.ini:
+  analytics:
+    check_for_updates: false
+    reporting_enabled: false
+  users:
+    allow_sign_up: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        url: http://prometheus-server.monitoring.svc
+        access: proxy
+        isDefault: true
+        editable: false
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: opspilot
+        orgId: 1
+        folder: OpsPilot
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/opspilot
+
+dashboards:
+  opspilot:
+    service-health:
+      json: |
+          {
+            "title": "OpsPilot: service health",
+            "uid": "opspilot-health",
+            "tags": [
+              "opspilot"
+            ],
+            "timezone": "browser",
+            "schemaVersion": 39,
+            "version": 1,
+            "refresh": "10s",
+            "time": {
+              "from": "now-15m",
+              "to": "now"
+            },
+            "panels": [
+              {
+                "id": 1,
+                "type": "stat",
+                "title": "Firing alerts",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 5,
+                  "w": 6,
+                  "x": 0,
+                  "y": 0
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum(ALERTS{alertstate=\"firing\"}) or vector(0)",
+                    "legendFormat": "firing"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "red",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "colorMode": "background",
+                  "graphMode": "none",
+                  "reduceOptions": {
+                    "calcs": [
+                      "lastNotNull"
+                    ]
+                  }
+                }
+              },
+              {
+                "id": 2,
+                "type": "stat",
+                "title": "Error rate (all services)",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 5,
+                  "w": 6,
+                  "x": 6,
+                  "y": 0
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "(sum(rate(http_requests_total{namespace=\"opspilot\",status=\"5xx\"}[2m])) / sum(rate(http_requests_total{namespace=\"opspilot\"}[2m]))) or vector(0)",
+                    "legendFormat": "errors"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "percentunit",
+                    "decimals": 1,
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "red",
+                          "value": 0.05
+                        }
+                      ]
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "colorMode": "background",
+                  "graphMode": "area",
+                  "reduceOptions": {
+                    "calcs": [
+                      "lastNotNull"
+                    ]
+                  }
+                }
+              },
+              {
+                "id": 3,
+                "type": "stat",
+                "title": "Requests / sec",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 5,
+                  "w": 6,
+                  "x": 12,
+                  "y": 0
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum(rate(http_requests_total{namespace=\"opspilot\"}[2m])) or vector(0)",
+                    "legendFormat": "rps"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "reqps",
+                    "decimals": 1
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "colorMode": "value",
+                  "graphMode": "area",
+                  "reduceOptions": {
+                    "calcs": [
+                      "lastNotNull"
+                    ]
+                  }
+                }
+              },
+              {
+                "id": 4,
+                "type": "stat",
+                "title": "Pods being scraped",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 5,
+                  "w": 6,
+                  "x": 18,
+                  "y": 0
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum(up{job=\"kubernetes-pods\",namespace=\"opspilot\"}) or vector(0)",
+                    "legendFormat": "up"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "decimals": 0
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "colorMode": "value",
+                  "graphMode": "none",
+                  "reduceOptions": {
+                    "calcs": [
+                      "lastNotNull"
+                    ]
+                  }
+                }
+              },
+              {
+                "id": 5,
+                "type": "timeseries",
+                "title": "Requests per second by service",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 8,
+                  "w": 12,
+                  "x": 0,
+                  "y": 5
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum by (app_kubernetes_io_name) (rate(http_requests_total{namespace=\"opspilot\"}[2m]))",
+                    "legendFormat": "{{app_kubernetes_io_name}}"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "reqps",
+                    "custom": {
+                      "lineWidth": 2,
+                      "fillOpacity": 10
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "legend": {
+                    "displayMode": "list",
+                    "placement": "bottom"
+                  },
+                  "tooltip": {
+                    "mode": "multi"
+                  }
+                }
+              },
+              {
+                "id": 6,
+                "type": "timeseries",
+                "title": "Error rate by service (5xx)",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 8,
+                  "w": 12,
+                  "x": 12,
+                  "y": 5
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum by (app_kubernetes_io_name) (rate(http_requests_total{namespace=\"opspilot\",status=\"5xx\"}[2m])) / sum by (app_kubernetes_io_name) (rate(http_requests_total{namespace=\"opspilot\"}[2m]))",
+                    "legendFormat": "{{app_kubernetes_io_name}}"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "percentunit",
+                    "custom": {
+                      "lineWidth": 2,
+                      "fillOpacity": 10,
+                      "thresholdsStyle": {
+                        "mode": "line"
+                      }
+                    },
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "red",
+                          "value": 0.05
+                        }
+                      ]
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "legend": {
+                    "displayMode": "list",
+                    "placement": "bottom"
+                  },
+                  "tooltip": {
+                    "mode": "multi"
+                  }
+                }
+              },
+              {
+                "id": 7,
+                "type": "timeseries",
+                "title": "p95 latency by service",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 8,
+                  "w": 12,
+                  "x": 0,
+                  "y": 13
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "histogram_quantile(0.95, sum by (le, app_kubernetes_io_name) (rate(http_request_duration_seconds_bucket{namespace=\"opspilot\"}[2m])))",
+                    "legendFormat": "{{app_kubernetes_io_name}}"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "s",
+                    "custom": {
+                      "lineWidth": 2,
+                      "fillOpacity": 10,
+                      "thresholdsStyle": {
+                        "mode": "line"
+                      }
+                    },
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "orange",
+                          "value": 0.5
+                        }
+                      ]
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "legend": {
+                    "displayMode": "list",
+                    "placement": "bottom"
+                  },
+                  "tooltip": {
+                    "mode": "multi"
+                  }
+                }
+              },
+              {
+                "id": 8,
+                "type": "timeseries",
+                "title": "Responses by status",
+                "datasource": {
+                  "type": "prometheus",
+                  "uid": "prometheus"
+                },
+                "gridPos": {
+                  "h": 8,
+                  "w": 12,
+                  "x": 12,
+                  "y": 13
+                },
+                "targets": [
+                  {
+                    "refId": "A",
+                    "datasource": {
+                      "type": "prometheus",
+                      "uid": "prometheus"
+                    },
+                    "expr": "sum by (status) (rate(http_requests_total{namespace=\"opspilot\"}[2m]))",
+                    "legendFormat": "{{status}}"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "unit": "reqps",
+                    "custom": {
+                      "lineWidth": 2,
+                      "fillOpacity": 10
+                    }
+                  },
+                  "overrides": []
+                },
+                "options": {
+                  "legend": {
+                    "displayMode": "list",
+                    "placement": "bottom"
+                  },
+                  "tooltip": {
+                    "mode": "multi"
+                  }
+                }
+              }
+            ]
+          }
