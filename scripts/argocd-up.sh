@@ -15,8 +15,24 @@ $K create namespace argocd --dry-run=client -o yaml | $K apply -f -
 # --server-side: Argo CD's CRDs are too large for client-side apply
 $K apply -n argocd --server-side --force-conflicts \
   -f "https://raw.githubusercontent.com/argoproj/argo-cd/$ARGOCD_VERSION/manifests/install.yaml"
+
+echo "==> Slimming Argo CD for a laptop"
+# Not used locally: SSO (dex), notifications, ApplicationSets. Login as admin still works.
+$K -n argocd scale deployment argocd-dex-server argocd-notifications-controller \
+  argocd-applicationset-controller --replicas=0
+# Upstream ships with no limits at all; cap each component so it can't starve the node.
+$K -n argocd set resources statefulset/argocd-application-controller -c argocd-application-controller \
+  --requests=cpu=100m,memory=256Mi --limits=cpu=500m,memory=768Mi
+$K -n argocd set resources deployment/argocd-repo-server -c argocd-repo-server \
+  --requests=cpu=50m,memory=128Mi --limits=cpu=500m,memory=512Mi
+$K -n argocd set resources deployment/argocd-server -c argocd-server \
+  --requests=cpu=50m,memory=96Mi --limits=cpu=300m,memory=256Mi
+$K -n argocd set resources deployment/argocd-redis -c redis \
+  --requests=cpu=25m,memory=32Mi --limits=cpu=200m,memory=128Mi
+
 $K -n argocd rollout status deployment/argocd-server --timeout=300s
 $K -n argocd rollout status deployment/argocd-repo-server --timeout=300s
+$K -n argocd rollout status deployment/argocd-redis --timeout=300s
 $K -n argocd rollout status statefulset/argocd-application-controller --timeout=300s
 
 # Argo CD now owns the app. Remove the Helm release record so two tools don't both manage it.
