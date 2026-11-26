@@ -7,8 +7,9 @@ image:
   tag: dev
   pullPolicy: IfNotPresent
 
-# Default replicas per service (a service can override with its own `replicas`)
-replicas: 2
+# Default replicas per service (a service can override with its own `replicas`).
+# 1 locally so the whole stack fits on an 8 GB laptop; staging/prod set their own.
+replicas: 1
 
 service:
   type: NodePort      # kind maps NodePorts 30001/30002 to localhost:9001/9002
