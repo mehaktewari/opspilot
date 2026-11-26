@@ -5,7 +5,7 @@
 
 An AI DevOps teammate: it watches a running system, explains incidents in plain English, and proposes fixes (rollback, scale, restart) that a human approves before anything changes.
 
-> Status: **Day 7** — laptop-friendly local mode: the whole stack runs on an 8 GB machine.
+> Status: **Step 8** — signed container images published to GitHub Container Registry.
 
 ## Sample app
 
@@ -107,6 +107,25 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 3. **k8s-validate**: `helm lint --strict`, then renders the chart for dev, staging and prod and validates each against Kubernetes 1.37 schemas (kubeconform)
 4. **e2e-kind**: creates a real kind cluster, installs the chart with Helm and runs a smoke test
 
+## Container images
+
+`.github/workflows/release.yml` builds and publishes each service to GitHub Container Registry:
+
+| Trigger | Tags | Used by |
+|---|---|---|
+| push to `main` (service code changed) | `main`, `sha-<commit>` | staging |
+| git tag `v1.2.3` | `1.2.3`, `sha-<commit>` | prod |
+
+Every image is **signed with cosign using GitHub's OIDC identity** (keyless: no signing keys to
+store or leak), and ships with an **SBOM** and **SLSA build provenance**. The workflow verifies
+its own signature before finishing. To verify an image yourself:
+
+```bash
+cosign verify ghcr.io/mehaktewari/opspilot-inventory:main \
+  --certificate-identity-regexp '^https://github.com/mehaktewari/opspilot/.github/workflows/release.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 ## Security
 
 `.github/workflows/security.yml` runs on every push, every PR, and weekly:
@@ -117,7 +136,7 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 | Python deps, Dockerfiles, secrets in files | Trivy (fs) | HIGH / CRITICAL with a fix available |
 | Built container images | Trivy (image) | CRITICAL with a fix available |
 
-Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab. Dependabot opens weekly PRs for Python packages, base images and GitHub Actions, and all actions are pinned to commit SHAs.
+Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab. Accepted risks live in `.trivyignore`, each with a reason and an expiry date. Dependabot opens weekly PRs for Python packages, base images and GitHub Actions, and all actions are pinned to commit SHAs.
 
 ## Roadmap
 
@@ -128,7 +147,8 @@ Findings are uploaded as SARIF to the repo's **Security → Code scanning** tab.
 - [x] Helm chart with dev / staging / prod values
 - [x] Argo CD (GitOps) with auto-sync and self-heal for dev
 - [x] Laptop-friendly local mode (8 GB): preflight check, slim Argo CD, 1 replica in dev
-- [ ] Publish images to GHCR + promote to staging/prod
+- [x] Signed images on GHCR (cosign keyless, SBOM, SLSA provenance)
+- [ ] Automatic promotion to staging/prod
 - [ ] Prometheus, Grafana, Loki, alerts
 - [ ] AI agent (read-only tools, root-cause summaries)
 - [ ] Dashboard + approval flow
