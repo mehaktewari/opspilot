@@ -32,10 +32,12 @@ fi
 
 if [ -n "$free_mb" ] && [ "$free_mb" -lt "$WARN_FREE_MB" ]; then
   echo "  Low memory. Close VMware/VirtualBox VMs, extra browser tabs and heavy apps."
-  if command -v tasklist.exe >/dev/null 2>&1; then
+  if command -v powershell.exe >/dev/null 2>&1; then
     echo "  Biggest memory users right now:"
-    tasklist.exe /FO CSV /NH 2>/dev/null | tr -d '\r' | awk -F'","' '{gsub(/"/,"",$1); m=$5; gsub(/[^0-9]/,"",m); print m "\t" $1}' \
-      | sort -rn | head -5 | awk -F'\t' '{printf "    %6d MB  %s\n", $1/1024, $2}'
+    # PowerShell instead of tasklist: Git Bash rewrites /FO-style arguments into file paths.
+    powershell.exe -NoProfile -Command \
+      "Get-Process | Group-Object ProcessName | ForEach-Object { [pscustomobject]@{ Name = \$_.Name; MB = [int](((\$_.Group | Measure-Object WorkingSet64 -Sum).Sum) / 1MB) } } | Sort-Object MB -Descending | Select-Object -First 5 | ForEach-Object { '    {0,6} MB  {1}' -f \$_.MB, \$_.Name }" \
+      2>/dev/null | tr -d '\r'
   fi
   if [ "$free_mb" -lt "$MIN_FREE_MB" ] && [ "${FORCE:-0}" != "1" ]; then
     echo "  Refusing to start with under ${MIN_FREE_MB} MB free (pods would get killed)."
