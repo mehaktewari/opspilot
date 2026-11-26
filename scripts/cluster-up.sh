@@ -14,7 +14,13 @@ for bin in docker kind kubectl helm; do
   command -v "$bin" >/dev/null || { echo "Missing: $bin"; exit 1; }
 done
 docker info >/dev/null 2>&1 || { echo "Docker isn't running"; exit 1; }
-bash scripts/preflight.sh
+# Only check free memory before creating a cluster. If it already exists, its memory is
+# already in use, and counting it against itself would block re-running this script.
+if kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
+  echo "==> Cluster '$CLUSTER' already running, skipping memory preflight"
+else
+  bash scripts/preflight.sh
+fi
 
 if ! kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
   echo "==> Creating kind cluster '$CLUSTER'"
