@@ -14,6 +14,7 @@ for bin in docker kind kubectl helm; do
   command -v "$bin" >/dev/null || { echo "Missing: $bin"; exit 1; }
 done
 docker info >/dev/null 2>&1 || { echo "Docker isn't running"; exit 1; }
+bash scripts/preflight.sh
 
 if ! kind get clusters 2>/dev/null | grep -qx "$CLUSTER"; then
   echo "==> Creating kind cluster '$CLUSTER'"
