@@ -1,0 +1,101 @@
+# Prometheus for OpsPilot, sized for a laptop (chart: prometheus-community/prometheus).
+# Deployed by Argo CD from deploy/argocd/monitoring.yaml.
+
+# Not needed yet; each one is another pod. Alertmanager comes back when the AI agent needs alerts routed.
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+server:
+  retention: 2d                 # short history: this is a demo, not a data warehouse
+  persistentVolume:
+    enabled: false              # data lives in the pod; fine for local, lost on restart
+  global:
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    evaluation_interval: 15s
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
+
+configmapReload:
+  prometheus:
+    resources:
+      requests:
+        cpu: 5m
+        memory: 16Mi
+      limits:
+        memory: 32Mi
+
+# Only scrape Prometheus itself and pods that opt in with prometheus.io/scrape: "true".
+scrapeConfigs:
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+
+serverFiles:
+  alerting_rules.yml:
+    groups:
+      - name: opspilot
+        rules:
+          - alert: OpsPilotHighErrorRate
+            expr: |
+              (
+                sum by (namespace, app_kubernetes_io_name) (rate(http_requests_total{status="5xx"}[2m]))
+                /
+                sum by (namespace, app_kubernetes_io_name) (rate(http_requests_total[2m]))
+              ) > 0.05
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.app_kubernetes_io_name }} is failing {{ $value | humanizePercentage }} of requests"
+              description: >-
+                More than 5% of requests to {{ $labels.app_kubernetes_io_name }} in
+                {{ $labels.namespace }} returned 5xx for over 1 minute.
+              runbook: docs/runbooks/high-error-rate.md
+
+          - alert: OpsPilotHighLatency
+            expr: |
+              histogram_quantile(0.95,
+                sum by (le, namespace, app_kubernetes_io_name) (rate(http_request_duration_seconds_bucket[2m]))
+              ) > 0.5
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "{{ $labels.app_kubernetes_io_name }} p95 latency is {{ $value | humanizeDuration }}"
+              description: >-
+                95th percentile latency for {{ $labels.app_kubernetes_io_name }} in
+                {{ $labels.namespace }} has been above 500ms for 2 minutes.
+
+          - alert: OpsPilotTargetDown
+            expr: up{job="kubernetes-pods", namespace="opspilot"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Prometheus cannot scrape {{ $labels.pod }}"
+              description: "{{ $labels.pod }} in {{ $labels.namespace }} has not answered /metrics for 1 minute."
