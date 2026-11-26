@@ -102,6 +102,43 @@ jobs:
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             deploy/argocd/
 
+  monitoring-validate:
+    name: validate monitoring
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install promtool (checksum verified)
+        env:
+          V: "3.16.0"
+          SHA: "68727009472a2c02e1ff7f062fd5b3e637285bffc8fc2d340c76fb449d6e0f34"
+        run: |
+          f="prometheus-$V.linux-amd64.tar.gz"
+          curl -sSLO "https://github.com/prometheus/prometheus/releases/download/v$V/$f"
+          echo "$SHA  $f" | sha256sum -c -
+          tar xzf "$f" "prometheus-$V.linux-amd64/promtool"
+          sudo mv "prometheus-$V.linux-amd64/promtool" /usr/local/bin/
+
+      - name: Check and unit-test alert rules
+        run: |
+          python3 -m pip install --quiet pyyaml
+          work="$RUNNER_TEMP/rules"; mkdir -p "$work"
+          python3 -c "import yaml,sys; v=yaml.safe_load(open('deploy/monitoring/prometheus-values.yaml')); yaml.safe_dump(v['serverFiles']['alerting_rules.yml'], open(sys.argv[1],'w'), sort_keys=False)" "$work/rules.yml"
+          cp deploy/monitoring/tests/alerts-test.yml "$work/"
+          promtool check rules "$work/rules.yml"
+          promtool test rules "$work/alerts-test.yml"
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          python3 -c "
+          import json, yaml
+          v = yaml.safe_load(open('deploy/monitoring/grafana-values.yaml'))
+          for folder, boards in v['dashboards'].items():
+              for name, b in boards.items():
+                  d = json.loads(b['json'])
+                  print('%s/%s: %s (%d panels)' % (folder, name, d['title'], len(d['panels'])))
+          "
+
   e2e-kind:
     name: e2e on kind
     needs: [test, k8s-validate]
