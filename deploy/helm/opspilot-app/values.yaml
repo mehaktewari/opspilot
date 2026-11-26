@@ -23,6 +23,9 @@ resources:
     cpu: 250m
     memory: 192Mi
 
+metrics:
+  scrape: true        # adds prometheus.io/* annotations so Prometheus scrapes /metrics
+
 podDisruptionBudget:
   enabled: true       # only rendered for services with more than 1 replica
   minAvailable: 1

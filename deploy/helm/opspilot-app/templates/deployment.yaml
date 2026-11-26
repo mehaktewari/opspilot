@@ -23,6 +23,13 @@ spec:
     metadata:
       labels:
         {{- include "opspilot.labels" $ctx | nindent 8 }}
+      {{- if $.Values.metrics.scrape }}
+      annotations:
+        # Prometheus discovers pods with these (see deploy/monitoring/prometheus-values.yaml)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+      {{- end }}
     spec:
       automountServiceAccountToken: false
       securityContext:
